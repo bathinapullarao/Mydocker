@@ -1,0 +1,80 @@
+ Perform upto step4 in all the three nodes
+step 1: update hosts file
+ #vi /etc/hosts
+ 10.128.0.2 node01 docker-manager-01
+ 10.128.0.3 node02 docker-worker-01
+ 10.128.0.4 node03 docker-worker-02
+
+step 2: Install prerequisite
+ # yum install -y epel-release.noarch
+ # yum-config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
+ # yum-config-manager --enable docker-ce-nightly
+ # yum makecache fast
+ # yum install -y docker-ce
+ # systemctl enable docker.service
+ # systemctl start docker.service
+
+Step 3: allow service ports in Linux Firewall
+ # firewall-cmd --permanent --add-port={2376,2377,7946}/tcp
+ # firewall-cmd --permanent --add-port={7946,4789}/udp
+ # firewall-cmd --reload
+
+Step 4: Check docker verion
+ # docker version   <--In O/P we should see Client and Server information
+
+Step 5: In node01
+ # docker swarm init --advertise-addr 10.128.0.2  <--run the command which generated in all the worker nodes
+
+Step 6: check the status of nodes in cluster
+ # docker node ls
+
+Step 7: Create a Replicated Service on master node
+ # docker pull httpd
+ # docker service create --name web1 -p 80:80 --replicas 5 httpd      <--to remove service #docker service rm web1
+
+Step 8: Check the service with 5 replicas
+ # docker service ps web1            
+
+Step 9: allow service port 80
+ # firewall-cmd --permanent --add-service=http                //To allow http service 
+ # firewall-cmd --reload
+
+docker service create -p 80:80 --name webserver nginx
+docker service ls                                             //To list which service available in cluster  
+docker service ps webserver                                   //To list num of services
+docker service scale webserver=5                              //To increase services to specific number
+docker swarm –help
+vi /var/lib/docker/overlay2/d7fc3ea2a4573c0a1269dfbc31fbb8c6a237e9236532023649c21ff68668636a/merged/usr/share/nginx/html/index.html
+Vi /etc/hosts
+10.128.0.9      node-1   35.238.136.94
+10.128.0.10     node-2   34.68.148.70
+10.128.0.11     node-3   35.226.174.247
+
+#touch Dockerfile   run-apache.sh
+#vi Dockerfile
+FROM centos
+MAINTAINER "Pullarao" <Bathina.Pullarao@emeriocorp.com>
+RUN yum -y update; yum clean all
+RUN yum -y install httpd; yum clean all
+RUN rm -rf /var/www/html/*
+RUN echo "Pullarao" >> /var/www/html/index.html
+EXPOSE 80
+# Simple startup script to avoid some issues observed with container restart
+ADD run-apache.sh /run-apache.sh
+RUN chmod -v +x /run-apache.sh
+CMD ["/run-apache.sh"]
+vi run-apache.sh
+#!/bin/bash
+rm -rf /run/httpd/*
+exec /usr/sbin/apachectl -D FOREGROUND
+
+docker node promote <node name>                                     //allow worker nodes as master when master down
+// docker node demote <node name>                                   //revoking above
+docker build . -t webserver:v1                                      //To create docker image from above docer file
+docker images
+docker ps –a
+docker service create -p 80:80 --name webservice webserver:v1       //create service in cluster
+docker tag imageid bathinapullarao/webserver:v1                     //need this format to push
+docker push bathinapullarao/webserver                               //push to docker hub account
+docker pull bathinapullarao/webserver:v1                            //in remaining nodes
+docker pull bathinapullarao/centos
